@@ -23,6 +23,9 @@ CREATE TABLE `admins` (
     `phone` VARCHAR(20) NULL,
     `password_hash` VARCHAR(255) NOT NULL,
     `role` ENUM('owner', 'staff') NOT NULL,
+    `pin_hash` VARCHAR(255) NULL,
+    `password_changed_at` DATETIME(3) NULL,
+    `auto_accept_orders` BOOLEAN NOT NULL DEFAULT false,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updated_at` DATETIME(3) NOT NULL,
 
@@ -69,6 +72,8 @@ CREATE TABLE `products` (
     `base_price_rent` DECIMAL(12, 2) NULL,
     `is_custom_available` BOOLEAN NOT NULL,
     `is_visible` BOOLEAN NOT NULL,
+    `sku` VARCHAR(40) NULL,
+    `condition_grade` VARCHAR(2) NULL,
     `deleted_at` DATETIME(3) NULL,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updated_at` DATETIME(3) NOT NULL,
@@ -95,6 +100,8 @@ CREATE TABLE `product_variants` (
     `stock_rent` INTEGER NOT NULL,
     `price_buy_override` DECIMAL(12, 2) NULL,
     `price_rent_override` DECIMAL(12, 2) NULL,
+    `stock_in_service` INTEGER NOT NULL DEFAULT 0,
+    `service_note` VARCHAR(255) NULL,
     `deleted_at` DATETIME(3) NULL,
 
     UNIQUE INDEX `product_variants_product_id_size_key`(`product_id`, `size`),
@@ -128,6 +135,11 @@ CREATE TABLE `orders` (
     `deadline_date` DATE NULL,
     `expired_at` DATETIME(3) NULL,
     `notes` TEXT NULL,
+    `courier` VARCHAR(60) NULL,
+    `tracking_number` VARCHAR(60) NULL,
+    `shipping_cost` DECIMAL(12, 2) NULL,
+    `shipped_at` DATETIME(3) NULL,
+    `eta_date` DATE NULL,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updated_at` DATETIME(3) NOT NULL,
 
@@ -175,6 +187,19 @@ CREATE TABLE `rentals` (
     `item_condition_after` TEXT NULL,
     `damage_note` TEXT NULL,
     `penalty_amount` DECIMAL(12, 2) NULL,
+    `pickup_time` VARCHAR(5) NULL,
+    `return_time` VARCHAR(5) NULL,
+    `handover_admin_id` BIGINT NULL,
+    `handover_at` DATETIME(3) NULL,
+    `agreement_photo` VARCHAR(255) NULL,
+    `deposit_amount` DECIMAL(12, 2) NULL,
+    `refund_amount` DECIMAL(12, 2) NULL,
+    `refund_status` VARCHAR(20) NULL,
+    `refund_bank` VARCHAR(40) NULL,
+    `refund_account` VARCHAR(40) NULL,
+    `refund_holder` VARCHAR(100) NULL,
+    `refund_proof_image` VARCHAR(255) NULL,
+    `refunded_at` DATETIME(3) NULL,
     `status` ENUM('dipesan', 'diambil', 'dikembalikan', 'terlambat') NOT NULL DEFAULT 'dipesan',
 
     UNIQUE INDEX `rentals_order_id_key`(`order_id`),
@@ -288,6 +313,63 @@ CREATE TABLE `refresh_tokens` (
     `token_hash` VARCHAR(255) NOT NULL,
     `expires_at` DATETIME(3) NOT NULL,
     `revoked_at` DATETIME(3) NULL,
+    `device_name` VARCHAR(150) NULL,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `product_accessories` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `product_id` BIGINT NOT NULL,
+    `accessory_id` BIGINT NOT NULL,
+    `quantity_per_set` INTEGER NOT NULL DEFAULT 1,
+
+    UNIQUE INDEX `product_accessories_product_id_accessory_id_key`(`product_id`, `accessory_id`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `order_size_entries` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `order_id` BIGINT NOT NULL,
+    `student_name` VARCHAR(100) NOT NULL,
+    `gender` VARCHAR(1) NULL,
+    `height_cm` INTEGER NULL,
+    `size` VARCHAR(20) NOT NULL,
+    `role` VARCHAR(60) NULL,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `order_photos` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `order_id` BIGINT NOT NULL,
+    `category` VARCHAR(20) NOT NULL,
+    `title` VARCHAR(150) NULL,
+    `image_url` VARCHAR(255) NOT NULL,
+    `is_public` BOOLEAN NOT NULL DEFAULT true,
+    `uploaded_by` BIGINT NULL,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `appointments` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `type` VARCHAR(20) NOT NULL,
+    `order_id` BIGINT NULL,
+    `customer_name` VARCHAR(120) NOT NULL,
+    `start_at` DATETIME(3) NOT NULL,
+    `duration_minutes` INTEGER NOT NULL DEFAULT 60,
+    `room` VARCHAR(60) NULL,
+    `staff_name` VARCHAR(100) NULL,
+    `note` TEXT NULL,
+    `created_by` BIGINT NULL,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
     PRIMARY KEY (`id`)
@@ -352,3 +434,18 @@ ALTER TABLE `testimonials` ADD CONSTRAINT `testimonials_user_id_fkey` FOREIGN KE
 
 -- AddForeignKey
 ALTER TABLE `testimonials` ADD CONSTRAINT `testimonials_order_id_fkey` FOREIGN KEY (`order_id`) REFERENCES `orders`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `product_accessories` ADD CONSTRAINT `product_accessories_product_id_fkey` FOREIGN KEY (`product_id`) REFERENCES `products`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `product_accessories` ADD CONSTRAINT `product_accessories_accessory_id_fkey` FOREIGN KEY (`accessory_id`) REFERENCES `accessories`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `order_size_entries` ADD CONSTRAINT `order_size_entries_order_id_fkey` FOREIGN KEY (`order_id`) REFERENCES `orders`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `order_photos` ADD CONSTRAINT `order_photos_order_id_fkey` FOREIGN KEY (`order_id`) REFERENCES `orders`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `appointments` ADD CONSTRAINT `appointments_order_id_fkey` FOREIGN KEY (`order_id`) REFERENCES `orders`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
