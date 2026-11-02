@@ -84,6 +84,90 @@ export class WebsiteAuthService {
     };
   }
 
+  static async googleLogin(idToken: string) {
+    if (!idToken) {
+      throw new AppError('Google ID Token diperlukan.', 400);
+    }
+
+    let googlePayload: {
+      sub: string;
+      email?: string;
+      name?: string;
+      picture?: string;
+      email_verified?: string | boolean;
+      aud?: string;
+    };
+
+    try {
+      const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+      if (!response.ok) {
+        throw new Error('Token Google tidak valid');
+      }
+      googlePayload = (await response.json()) as typeof googlePayload;
+    } catch (err) {
+      throw new AppError('Verifikasi akun Google gagal. Token tidak valid.', 401);
+    }
+
+    const { sub: googleId, email, name, picture } = googlePayload;
+    if (!email) {
+      throw new AppError('Akun Google tidak menyediakan alamat email.', 400);
+    }
+
+    let user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { googleId },
+          { email },
+        ],
+      },
+    });
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email,
+          name: name || email.split('@')[0],
+          googleId,
+          profilePhoto: picture,
+        },
+      });
+    } else {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          googleId: googleId || user.googleId,
+          ...(picture ? { profilePhoto: picture } : {}),
+        },
+      });
+    }
+
+    const payload = { id: user.id.toString(), type: 'user' as const };
+    const accessToken = generateAccessToken(payload);
+    const refreshToken = generateRefreshToken(payload);
+
+    await prisma.refreshToken.create({
+      data: {
+        accountType: 'user',
+        accountId: user.id,
+        tokenHash: crypto.createHash('sha256').update(refreshToken).digest('hex'),
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+
+    return {
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        address: user.address,
+        profilePhoto: user.profilePhoto,
+      },
+      accessToken,
+      refreshToken,
+    };
+  }
+
   static async refresh(refreshToken: string) {
     if (!refreshToken) {
       throw new AppError('Refresh token diperlukan.', 401);

@@ -29,6 +29,8 @@ app.use(
       if (origin === env.WEBSITE_FRONTEND_URL) return callback(null, true);
       return callback(new Error("Not allowed by CORS"));
     },
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'QUERY', 'OPTIONS'],
+    exposedHeaders: ['Accept-Query'],
     credentials: true,
   }),
 );

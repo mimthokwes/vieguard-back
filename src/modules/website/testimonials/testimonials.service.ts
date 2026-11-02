@@ -6,6 +6,22 @@ export class WebsiteTestimonialsService {
     return prisma.testimonial.findMany({
       include: {
         user: { select: { name: true, profilePhoto: true } },
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            orderType: true,
+            createdAt: true,
+            items: {
+              select: {
+                size: true,
+                quantity: true,
+                product: { select: { name: true } },
+                accessory: { select: { name: true } },
+              },
+            },
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });

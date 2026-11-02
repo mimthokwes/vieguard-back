@@ -38,3 +38,30 @@ export const getAvailability = async (req: Request, res: Response, next: NextFun
     next(error);
   }
 };
+
+/**
+ * Smart Product Search via HTTP QUERY method (RFC 10008).
+ * Accepts search payload in request body or query string.
+ */
+export const searchQuery = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // RFC 10008 header declaration
+    res.setHeader('Accept-Query', 'application/json');
+
+    const payload = req.body && Object.keys(req.body).length > 0 ? req.body : req.query;
+    const { q, query, search, categoryId, type, minPrice, maxPrice } = payload;
+
+    const searchTerm = q || query || search || '';
+    const result = await WebsiteProductsService.smartSearch({
+      q: String(searchTerm),
+      categoryId: categoryId ? String(categoryId) : undefined,
+      type: type ? String(type) : undefined,
+      minPrice: minPrice ? String(minPrice) : undefined,
+      maxPrice: maxPrice ? String(maxPrice) : undefined,
+    });
+
+    return sendSuccess(res, 'Pencarian produk cerdas berhasil', result);
+  } catch (error) {
+    next(error);
+  }
+};

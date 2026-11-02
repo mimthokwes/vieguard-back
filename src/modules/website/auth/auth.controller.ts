@@ -31,6 +31,23 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
   }
 };
 
+export const googleLogin = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { credential, idToken, token } = req.body;
+    const tokenToVerify = credential || idToken || token;
+    const result = await WebsiteAuthService.googleLogin(tokenToVerify);
+    res.cookie('accessToken', result.accessToken, cookieOptions);
+    res.cookie('refreshToken', result.refreshToken, cookieOptions);
+    return sendSuccess(res, 'Login Google berhasil', {
+      user: result.user,
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const refresh = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const refreshToken = req.cookies?.refreshToken;

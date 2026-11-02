@@ -2,6 +2,7 @@ import { Server as HttpServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { verifyAccessToken } from '../shared/utils/jwt';
 import { ChatService } from '../shared/services/chatService';
+import { prisma } from './prisma';
 
 let io: SocketIOServer | null = null;
 
@@ -96,17 +97,31 @@ export const initSocketServer = (httpServer: HttpServer) => {
     socket.on('message:send', async (data: { conversationId: string; messageText?: string; imageAttachment?: string }) => {
       try {
         const convId = BigInt(data.conversationId);
-        const message = await ChatService.saveMessage({
-          conversationId: convId,
-          senderType: 'admin',
-          senderId: admin.id,
-          messageText: data.messageText,
-          imageAttachment: data.imageAttachment,
-        });
+        const [message, conversation] = await Promise.all([
+          ChatService.saveMessage({
+            conversationId: convId,
+            senderType: 'admin',
+            senderId: admin.id,
+            messageText: data.messageText,
+            imageAttachment: data.imageAttachment,
+          }),
+          prisma.conversation.findUnique({
+            where: { id: convId },
+            select: { userId: true },
+          }),
+        ]);
 
         const room = `conversation:${data.conversationId}`;
         mobileNamespace.to(room).to('admins').emit('message:new', message);
-        io?.of('/ws/website').to(room).emit('message:new', message);
+
+        const websiteNs = io?.of('/ws/website');
+        if (websiteNs) {
+          let websiteTarget = websiteNs.to(room);
+          if (conversation?.userId) {
+            websiteTarget = websiteTarget.to(`user:${conversation.userId}`);
+          }
+          websiteTarget.emit('message:new', message);
+        }
       } catch (err) {
         console.error('Error sending mobile chat message:', err);
       }
