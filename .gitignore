@@ -19,6 +19,5 @@ npm-debug.log*
 
 # OS
 .DS_Store
-prisma/create-test-conversation.js
 prisma/migrations
 .claude/

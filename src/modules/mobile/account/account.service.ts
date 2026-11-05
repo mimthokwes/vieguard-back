@@ -9,7 +9,16 @@ export class MobileAccountService {
       select: { id: true, name: true, email: true, phone: true, role: true, createdAt: true },
     });
     if (!admin) throw new AppError('Profil admin tidak ditemukan.', 404);
-    return admin;
+
+    const linkedUser = await prisma.user.findFirst({
+      where: { email: admin.email },
+      select: { profilePhoto: true },
+    });
+
+    return {
+      ...admin,
+      profilePhoto: linkedUser?.profilePhoto || null,
+    };
   }
 
   static async updateProfile(adminId: bigint, data: { name?: string; phone?: string }) {

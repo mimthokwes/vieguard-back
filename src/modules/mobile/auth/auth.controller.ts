@@ -2,6 +2,24 @@ import { Request, Response, NextFunction } from 'express';
 import { MobileAuthService } from './auth.service';
 import { sendSuccess } from '../../../shared/utils/response';
 
+export const register = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await MobileAuthService.register(req.body);
+    return sendSuccess(res, 'Registrasi admin berhasil', result, 201);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const googleLogin = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await MobileAuthService.googleLogin(req.body);
+    return sendSuccess(res, 'Login Google berhasil', result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const login = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await MobileAuthService.login(req.body, req.get('user-agent'));

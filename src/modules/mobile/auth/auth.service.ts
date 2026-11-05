@@ -6,6 +6,123 @@ import { MailService } from '../../../shared/services/mail.service';
 import crypto from 'crypto';
 
 export class MobileAuthService {
+  static async register(data: { name: string; email: string; password: string; phone?: string; role?: 'owner' | 'staff' }) {
+    const existing = await prisma.admin.findUnique({ where: { email: data.email } });
+    if (existing) {
+      throw new AppError('Email admin sudah terdaftar.', 409);
+    }
+
+    const passwordHash = await hashPassword(data.password);
+    const admin = await prisma.admin.create({
+      data: {
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        passwordHash,
+        role: data.role || 'staff',
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        createdAt: true,
+      },
+    });
+
+    const payload = { id: admin.id.toString(), type: 'admin' as const, role: admin.role };
+    const accessToken = generateAccessToken(payload);
+    const refreshToken = generateRefreshToken(payload);
+
+    await prisma.refreshToken.create({
+      data: {
+        accountType: 'admin',
+        accountId: admin.id,
+        tokenHash: crypto.createHash('sha256').update(refreshToken).digest('hex'),
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        deviceName: 'Mobile Registration',
+      },
+    });
+
+    return {
+      admin: {
+        id: admin.id,
+        name: admin.name,
+        email: admin.email,
+        phone: admin.phone,
+        role: admin.role,
+        profilePhoto: null,
+      },
+      accessToken,
+      refreshToken,
+    };
+  }
+
+  static async googleLogin(data: { idToken?: string; credential?: string; token?: string; email?: string; name?: string; picture?: string }) {
+    const tokenToVerify = data.idToken || data.credential || data.token;
+    let email = data.email;
+    let name = data.name;
+
+    if (tokenToVerify) {
+      try {
+        const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(tokenToVerify)}`);
+        if (response.ok) {
+          const payload = (await response.json()) as any;
+          if (payload.email) email = payload.email;
+          if (payload.name) name = payload.name;
+        }
+      } catch (_) {
+        // Fallback to provided email if network call to Google tokeninfo fails
+      }
+    }
+
+    if (!email) {
+      throw new AppError('Kredensial atau email Google tidak valid.', 400);
+    }
+
+    let admin = await prisma.admin.findUnique({ where: { email } });
+    if (!admin) {
+      const dummyPassword = crypto.randomBytes(16).toString('hex');
+      const passwordHash = await hashPassword(dummyPassword);
+      admin = await prisma.admin.create({
+        data: {
+          name: name || email.split('@')[0],
+          email,
+          passwordHash,
+          role: 'staff',
+        },
+      });
+    }
+
+    const payload = { id: admin.id.toString(), type: 'admin' as const, role: admin.role };
+    const accessToken = generateAccessToken(payload);
+    const refreshToken = generateRefreshToken(payload);
+
+    await prisma.refreshToken.create({
+      data: {
+        accountType: 'admin',
+        accountId: admin.id,
+        tokenHash: crypto.createHash('sha256').update(refreshToken).digest('hex'),
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        deviceName: 'Mobile Google Login',
+      },
+    });
+
+    return {
+      admin: {
+        id: admin.id,
+        name: admin.name,
+        email: admin.email,
+        phone: admin.phone,
+        role: admin.role,
+        profilePhoto: data.picture || null,
+      },
+      accessToken,
+      refreshToken,
+    };
+  }
+
   static async login(data: { email: string; password: string }, deviceName?: string) {
     const admin = await prisma.admin.findUnique({ where: { email: data.email } });
     if (!admin) {
@@ -38,6 +155,7 @@ export class MobileAuthService {
         email: admin.email,
         phone: admin.phone,
         role: admin.role,
+        profilePhoto: null,
       },
       accessToken,
       refreshToken,

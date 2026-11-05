@@ -1,5 +1,22 @@
 import { z } from 'zod';
 
+export const mobileRegisterSchema = z.object({
+  name: z.string().min(2, 'Nama minimal 2 karakter').max(100),
+  email: z.string().email('Email tidak valid').max(100),
+  password: z.string().min(6, 'Password minimal 6 karakter'),
+  phone: z.string().optional(),
+  role: z.enum(['owner', 'staff']).optional().default('staff'),
+});
+
+export const mobileGoogleLoginSchema = z.object({
+  credential: z.string().optional(),
+  idToken: z.string().optional(),
+  token: z.string().optional(),
+  email: z.string().email('Email tidak valid').optional(),
+  name: z.string().optional(),
+  picture: z.string().optional(),
+});
+
 export const mobileLoginSchema = z.object({
   email: z.string().email('Email tidak valid'),
   password: z.string().min(1, 'Password harus diisi'),
