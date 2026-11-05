@@ -80,6 +80,15 @@ export const forgotPassword = async (req: Request, res: Response, next: NextFunc
   }
 };
 
+export const verifyOtp = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await WebsiteAuthService.verifyOtp(req.body.email, req.body.otpCode);
+    return sendSuccess(res, result.message, { valid: result.valid });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const resetPassword = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await WebsiteAuthService.resetPassword(req.body);

@@ -2,6 +2,7 @@ import { prisma } from '../../../config/prisma';
 import { hashPassword, comparePassword } from '../../../shared/utils/hash';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../../../shared/utils/jwt';
 import { AppError } from '../../../middlewares/error-handler';
+import { MailService } from '../../../shared/services/mail.service';
 import crypto from 'crypto';
 
 export class WebsiteAuthService {
@@ -213,6 +214,16 @@ export class WebsiteAuthService {
       return { message: 'Jika email terdaftar, kode OTP reset password telah dikirim.' };
     }
 
+    // Invalidate previous active OTPs
+    await prisma.passwordReset.updateMany({
+      where: {
+        accountType: 'user',
+        accountId: user.id,
+        isUsed: false,
+      },
+      data: { isUsed: true },
+    });
+
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
 
@@ -225,8 +236,36 @@ export class WebsiteAuthService {
       },
     });
 
-    console.log(`[DEV OTP] Website User OTP for ${email}: ${otpCode}`);
-    return { message: 'Kode OTP telah dibuat. Silakan periksa inbox/console dev.' };
+    try {
+      await MailService.sendOtpEmail(user.email, otpCode, user.name);
+    } catch (mailError) {
+      console.error(`[MAIL ERROR] Failed to deliver OTP email to ${email}:`, mailError);
+      throw new AppError('Gagal mengirimkan email kode OTP. Silakan periksa konfigurasi mail server.', 500);
+    }
+
+    return { message: 'Kode OTP telah dikirim ke email Anda. Silakan periksa kotak masuk atau spam.' };
+  }
+
+  static async verifyOtp(email: string, otpCode: string) {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) throw new AppError('Email tidak ditemukan.', 404);
+
+    const resetRecord = await prisma.passwordReset.findFirst({
+      where: {
+        accountType: 'user',
+        accountId: user.id,
+        otpCode,
+        isUsed: false,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!resetRecord) {
+      throw new AppError('Kode OTP tidak valid atau telah kadaluwarsa.', 400);
+    }
+
+    return { message: 'Kode OTP valid.', valid: true };
   }
 
   static async resetPassword(data: { email: string; otpCode: string; newPassword: string }) {
@@ -259,6 +298,16 @@ export class WebsiteAuthService {
       data: { isUsed: true },
     });
 
-    return { message: 'Password berhasil diperbarui. Silakan login kembali.' };
+    // Revoke any active refresh tokens for security
+    await prisma.refreshToken.updateMany({
+      where: {
+        accountType: 'user',
+        accountId: user.id,
+        revokedAt: null,
+      },
+      data: { revokedAt: new Date() },
+    });
+
+    return { message: 'Password berhasil diperbarui. Silakan login dengan password baru Anda.' };
   }
 }

@@ -17,6 +17,11 @@ export const forgotPasswordSchema = z.object({
   email: z.string().email('Email tidak valid'),
 });
 
+export const verifyOtpSchema = z.object({
+  email: z.string().email('Email tidak valid'),
+  otpCode: z.string().length(6, 'Kode OTP 6 digit'),
+});
+
 export const resetPasswordSchema = z.object({
   email: z.string().email('Email tidak valid'),
   otpCode: z.string().length(6, 'Kode OTP 6 digit'),

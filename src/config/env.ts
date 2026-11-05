@@ -27,4 +27,12 @@ export const env = {
   MIDTRANS_SERVER_KEY: process.env.MIDTRANS_SERVER_KEY || '',
   MIDTRANS_CLIENT_KEY: process.env.MIDTRANS_CLIENT_KEY || '',
   MIDTRANS_IS_PRODUCTION: process.env.MIDTRANS_IS_PRODUCTION === 'true',
+
+  MAIL_MAILER: process.env.MAIL_MAILER || 'smtp',
+  MAIL_HOST: process.env.MAIL_HOST || 'sandbox.smtp.mailtrap.io',
+  MAIL_PORT: parseInt(process.env.MAIL_PORT || '587', 10),
+  MAIL_USERNAME: process.env.MAIL_USERNAME || '',
+  MAIL_PASSWORD: process.env.MAIL_PASSWORD || '',
+  MAIL_FROM_ADDRESS: process.env.MAIL_FROM_ADDRESS || 'no-reply@vieguard.com',
+  MAIL_FROM_APP: process.env.MAIL_FROM_APP || 'VIEGUARD',
 };

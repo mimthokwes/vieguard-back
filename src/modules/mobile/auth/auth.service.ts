@@ -2,6 +2,7 @@ import { prisma } from '../../../config/prisma';
 import { comparePassword, hashPassword } from '../../../shared/utils/hash';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../../../shared/utils/jwt';
 import { AppError } from '../../../middlewares/error-handler';
+import { MailService } from '../../../shared/services/mail.service';
 import crypto from 'crypto';
 
 export class MobileAuthService {
@@ -106,8 +107,13 @@ export class MobileAuthService {
       },
     });
 
-    console.log(`[DEV OTP] Mobile Admin OTP for ${email}: ${otpCode}`);
-    return { message: 'Kode OTP telah dibuat. Silakan periksa console/inbox.' };
+    try {
+      await MailService.sendOtpEmail(admin.email, otpCode, admin.name);
+    } catch (mailError) {
+      console.error(`[MAIL ERROR] Failed to deliver admin OTP email to ${email}:`, mailError);
+    }
+
+    return { message: 'Kode OTP telah dikirim ke email admin.' };
   }
 
   static async resetPassword(data: { email: string; otpCode: string; newPassword: string }) {

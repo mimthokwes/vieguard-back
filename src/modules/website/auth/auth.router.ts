@@ -5,6 +5,7 @@ import {
   registerSchema,
   loginSchema,
   forgotPasswordSchema,
+  verifyOtpSchema,
   resetPasswordSchema,
 } from './auth.validator';
 
@@ -16,6 +17,7 @@ router.post('/google', authController.googleLogin);
 router.post('/refresh', authController.refresh);
 router.post('/logout', authController.logout);
 router.post('/forgot-password', validate(forgotPasswordSchema), authController.forgotPassword);
+router.post('/verify-otp', validate(verifyOtpSchema), authController.verifyOtp);
 router.post('/reset-password', validate(resetPasswordSchema), authController.resetPassword);
 
 export default router;
