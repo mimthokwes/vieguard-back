@@ -9,5 +9,6 @@ router.use(authenticateWebsite);
 router.get('/conversations', chatController.getConversations);
 router.post('/conversations', chatController.getOrCreateConversation);
 router.get('/conversations/:id/messages', chatController.getMessages);
+router.post('/conversations/:id/messages', chatController.sendMessage);
 
 export default router;

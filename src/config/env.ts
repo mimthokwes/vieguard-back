@@ -35,4 +35,6 @@ export const env = {
   MAIL_PASSWORD: process.env.MAIL_PASSWORD || '',
   MAIL_FROM_ADDRESS: process.env.MAIL_FROM_ADDRESS || 'no-reply@vieguard.com',
   MAIL_FROM_APP: process.env.MAIL_FROM_APP || 'VIEGUARD',
+
+  AI_SERVICE_URL: process.env.AI_SERVICE_URL || 'http://localhost:5001',
 };

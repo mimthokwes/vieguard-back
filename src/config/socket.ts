@@ -50,17 +50,23 @@ export const initSocketServer = (httpServer: HttpServer) => {
     socket.on('message:send', async (data: { conversationId: string; messageText?: string; imageAttachment?: string }) => {
       try {
         const convId = BigInt(data.conversationId);
-        const message = await ChatService.saveMessage({
+        const { userMessage, aiMessage } = await ChatService.handleUserMessageAndAIReply({
           conversationId: convId,
-          senderType: 'user',
-          senderId: user.id,
+          userId: user.id,
           messageText: data.messageText,
           imageAttachment: data.imageAttachment,
         });
 
         const room = `conversation:${data.conversationId}`;
-        websiteNamespace.to(room).emit('message:new', message);
-        io?.of('/ws/mobile').to(room).to('admins').emit('message:new', message);
+        // 1. Emit pesan user ke room website & mobile admin
+        websiteNamespace.to(room).emit('message:new', userMessage);
+        io?.of('/ws/mobile').to(room).to('admins').emit('message:new', userMessage);
+
+        // 2. Jika ada balasan otomatis dari AI (sebagai admin), emit ke website & mobile
+        if (aiMessage) {
+          websiteNamespace.to(room).emit('message:new', aiMessage);
+          io?.of('/ws/mobile').to(room).to('admins').emit('message:new', aiMessage);
+        }
       } catch (err) {
         console.error('Error sending website chat message:', err);
       }

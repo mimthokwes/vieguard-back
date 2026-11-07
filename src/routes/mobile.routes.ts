@@ -13,6 +13,7 @@ import mobileCustomersRouter from '../modules/mobile/customers/customers.router'
 import mobileReportsRouter from '../modules/mobile/reports/reports.router';
 import mobileChatRouter from '../modules/mobile/chat/chat.router';
 import mobileNotificationsRouter from '../modules/mobile/notifications/notifications.router';
+import mobileAiRouter from '../modules/mobile/ai/ai.router';
 
 const router = Router();
 
@@ -30,5 +31,7 @@ router.use('/customers', mobileCustomersRouter);
 router.use('/reports', mobileReportsRouter);
 router.use('/chat', mobileChatRouter);
 router.use('/notifications', mobileNotificationsRouter);
+router.use('/ai', mobileAiRouter);
+
 
 export default router;

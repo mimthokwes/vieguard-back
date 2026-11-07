@@ -32,3 +32,23 @@ export const getMessages = async (req: AuthenticatedUserRequest, res: Response, 
     next(error);
   }
 };
+
+export const sendMessage = async (req: AuthenticatedUserRequest, res: Response, next: NextFunction) => {
+  try {
+    const conversationId = toBigInt(req.params.id);
+    const userId = req.user!.id;
+    const { messageText, imageAttachment } = req.body;
+
+    const result = await WebsiteChatService.sendMessage({
+      conversationId,
+      userId,
+      messageText,
+      imageAttachment,
+    });
+
+    return sendSuccess(res, 'Pesan berhasil dikirim dan direspon', result, 201);
+  } catch (error) {
+    next(error);
+  }
+};
+
