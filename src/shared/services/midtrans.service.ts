@@ -17,6 +17,7 @@ export interface CreateSnapTransactionParams {
     quantity: number;
     name: string;
   }>;
+  enabledPayments?: string[];
 }
 
 export interface SnapTransactionResponse {
@@ -73,6 +74,10 @@ export class MidtransService {
         quantity: item.quantity,
         name: item.name.substring(0, 50),
       }));
+    }
+
+    if (params.enabledPayments && params.enabledPayments.length > 0) {
+      parameter.enabled_payments = params.enabledPayments;
     }
 
     const transaction = await snap.createTransaction(parameter);

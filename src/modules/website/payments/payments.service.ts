@@ -3,6 +3,12 @@ import { AppError } from '../../../middlewares/error-handler';
 import { dispatchNotification } from '../../../shared/services/notificationDispatcher';
 import { MidtransService } from '../../../shared/services/midtrans.service';
 
+export interface CreateSnapOptions {
+  paymentMethod?: 'qris' | 'va';
+  paymentType?: 'dp' | 'pelunasan';
+  amount?: number;
+}
+
 export class WebsitePaymentsService {
   static async uploadPaymentProof(
     userId: bigint,
@@ -49,17 +55,13 @@ export class WebsitePaymentsService {
     return payment;
   }
 
-  static async createSnapTransaction(userId: bigint, orderId: bigint) {
+  static async createSnapTransaction(userId: bigint, orderId: bigint, options?: CreateSnapOptions) {
     const order = await prisma.order.findFirst({
       where: { id: orderId, userId },
       include: {
         user: true,
-        items: {
-          include: {
-            product: true,
-            productVariant: true,
-            accessory: true,
-          },
+        payments: {
+          where: { status: 'terverifikasi', paymentType: { not: 'refund' } },
         },
       },
     });
@@ -72,40 +74,65 @@ export class WebsitePaymentsService {
       throw new AppError('Pesanan ini sudah lunas.', 400);
     }
 
-    const itemDetails = order.items.map((item) => ({
-      id: String(item.id),
-      price: Number(item.unitPrice),
-      quantity: item.quantity,
-      name:
-        item.product?.name
-          ? (item.size ? `${item.product.name} (${item.size})` : item.product.name)
-          : item.accessory?.name || 'Item Pesanan',
-    }));
+    const total = Number(order.totalPrice);
+    const dp = Number(order.dpAmount) > 0 ? Number(order.dpAmount) : Math.round(total * 0.5);
 
-    if (order.shippingCost && Number(order.shippingCost) > 0) {
-      itemDetails.push({
-        id: 'SHIPPING',
-        price: Number(order.shippingCost),
-        quantity: 1,
-        name: `Ongkir (${order.courier || 'Kurir'})`,
-      });
+    const paid = order.payments.reduce((sum, p) => sum + Number(p.amount), 0);
+    const remaining = Math.max(0, total - paid);
+
+    let payAmount = remaining;
+    let paymentType = options?.paymentType || (paid > 0 ? 'pelunasan' : 'dp');
+
+    if (paid === 0) {
+      if (options?.paymentType === 'dp') {
+        payAmount = dp;
+      } else if (options?.paymentType === 'pelunasan') {
+        payAmount = total;
+      } else {
+        payAmount = options?.amount || dp;
+      }
+    } else {
+      payAmount = remaining;
+      paymentType = 'pelunasan';
     }
 
+    // Determine enabled payments filter (QRIS vs VA)
+    let enabledPayments: string[] | undefined = undefined;
+    if (options?.paymentMethod === 'qris') {
+      enabledPayments = ['qris', 'gopay', 'shopeepay'];
+    } else if (options?.paymentMethod === 'va') {
+      enabledPayments = ['bca_va', 'bni_va', 'bri_va', 'echannel', 'permata_va', 'cimb_va', 'other_va'];
+    }
+
+    // Order ID suffix to avoid duplicate order ID in Midtrans across retries / stages
+    const chargeSuffix = paymentType === 'dp' ? 'DP' : (paid > 0 ? 'PELUNASAN' : 'FULL');
+    const midtransOrderId = `${order.orderNumber}-${chargeSuffix}-${Date.now().toString().slice(-4)}`;
+
     const snapResult = await MidtransService.createTransaction({
-      orderNumber: order.orderNumber,
-      grossAmount: Number(order.totalPrice),
+      orderNumber: midtransOrderId,
+      grossAmount: payAmount,
       customerDetails: {
         firstName: order.user.name,
         email: order.user.email,
         phone: order.user.phone || undefined,
       },
-      itemDetails,
+      itemDetails: [
+        {
+          id: `${order.orderNumber}-${paymentType}`,
+          price: payAmount,
+          quantity: 1,
+          name: `Pembayaran ${paymentType.toUpperCase()} #${order.orderNumber}`,
+        },
+      ],
+      enabledPayments,
     });
 
     return {
       orderId: order.id.toString(),
       orderNumber: order.orderNumber,
-      grossAmount: Number(order.totalPrice),
+      midtransOrderId,
+      paymentType,
+      grossAmount: payAmount,
       snapToken: snapResult.token,
       redirectUrl: snapResult.redirectUrl,
     };
