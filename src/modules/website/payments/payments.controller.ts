@@ -50,3 +50,28 @@ export const createSnapTransaction = async (req: AuthenticatedUserRequest, res: 
     next(error);
   }
 };
+
+export const chargeDirectPayment = async (req: AuthenticatedUserRequest, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    const { orderId, paymentMethod, bank, paymentType, amount } = req.body;
+
+    if (!orderId) {
+      throw new AppError('orderId wajib diisi.', 400);
+    }
+    if (!paymentMethod || !['qris', 'va'].includes(paymentMethod)) {
+      throw new AppError('paymentMethod harus "qris" atau "va".', 400);
+    }
+
+    const result = await WebsitePaymentsService.createDirectCharge(userId, BigInt(orderId), {
+      paymentMethod,
+      bank,
+      paymentType,
+      amount: amount ? parseFloat(amount) : undefined,
+    });
+
+    return sendSuccess(res, 'Pembayaran berhasil diinisiasi', result, 201);
+  } catch (error) {
+    next(error);
+  }
+};
