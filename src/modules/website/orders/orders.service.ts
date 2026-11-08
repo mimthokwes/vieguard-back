@@ -53,7 +53,7 @@ export class WebsiteOrdersService {
     }
 
     const orderNumber = generateOrderNumber();
-    const expiredAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour auto-cancel if pending
+    const expiredAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours for admin material check & confirmation
 
     const order = await prisma.order.create({
       data: {
