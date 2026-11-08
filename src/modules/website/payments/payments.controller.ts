@@ -30,3 +30,19 @@ export const uploadPaymentProof = async (req: AuthenticatedUserRequest, res: Res
     next(error);
   }
 };
+
+export const createSnapTransaction = async (req: AuthenticatedUserRequest, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    const { orderId } = req.body;
+
+    if (!orderId) {
+      throw new AppError('orderId wajib diisi.', 400);
+    }
+
+    const result = await WebsitePaymentsService.createSnapTransaction(userId, BigInt(orderId));
+    return sendSuccess(res, 'Transaksi Midtrans Snap berhasil dibuat', result, 201);
+  } catch (error) {
+    next(error);
+  }
+};

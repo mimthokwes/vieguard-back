@@ -7,6 +7,10 @@ const router = Router();
 
 router.use(authenticateWebsite);
 
+// Manual transfer proof upload
 router.post('/proof', upload.single('proofImage'), paymentsController.uploadPaymentProof);
+
+// Midtrans Snap payment creation
+router.post('/snap', paymentsController.createSnapTransaction);
 
 export default router;
