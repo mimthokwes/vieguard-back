@@ -61,6 +61,7 @@ export class MobileOrdersService {
       data: {
         status: 'dikonfirmasi',
         dpAmount: dpAmount ? dpAmount : order.dpAmount,
+        expiredAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours to pay DP
       },
     });
 
@@ -68,8 +69,8 @@ export class MobileOrdersService {
       data: {
         orderId,
         progressPercentage: 0,
-        statusLabel: 'Pesanan Dikonfirmasi Admin',
-        note: 'Admin telah mengonfirmasi pesanan.',
+        statusLabel: 'Bahan Terkonfirmasi & Pesanan Disetujui',
+        note: 'Admin telah mengonfirmasi ketersediaan bahan. Menunggu pembayaran DP dari pelanggan.',
         updatedBy: adminId,
       },
     });
@@ -78,8 +79,8 @@ export class MobileOrdersService {
       recipientType: 'user',
       recipientId: order.userId,
       type: 'ORDER_CONFIRMED',
-      title: 'Pesanan Dikonfirmasi',
-      message: `Pesanan ${order.orderNumber} telah dikonfirmasi oleh admin. Silakan lakukan pembayaran.`,
+      title: 'Bahan Tersedia & Pesanan Dikonfirmasi',
+      message: `Bahan untuk pesanan ${order.orderNumber} telah terkonfirmasi. Silakan lakukan pembayaran DP untuk memulai produksi.`,
       relatedOrderId: order.id,
     });
 

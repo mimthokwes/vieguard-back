@@ -28,6 +28,12 @@ export const env = {
   MIDTRANS_CLIENT_KEY: process.env.MIDTRANS_CLIENT_KEY || '',
   MIDTRANS_IS_PRODUCTION: process.env.MIDTRANS_IS_PRODUCTION === 'true',
 
+  BINDERPAY_BASE_URL: process.env.BINDERPAY_BASE_URL || 'https://api-sandbox.binderpay.id',
+  BINDERPAY_PARTNER_ID: process.env.BINDERPAY_PARTNER_ID || 'BP750523',
+  BINDERPAY_PUBLIC_KEY_PATH: process.env.BINDERPAY_PUBLIC_KEY_PATH || 'keys/binderpay-public.pem',
+  BINDERPAY_PRIVATE_KEY_PATH: process.env.BINDERPAY_PRIVATE_KEY_PATH || 'keys/vieguard-private.pem',
+
+
   MAIL_MAILER: process.env.MAIL_MAILER || 'smtp',
   MAIL_HOST: process.env.MAIL_HOST || 'sandbox.smtp.mailtrap.io',
   MAIL_PORT: parseInt(process.env.MAIL_PORT || '587', 10),

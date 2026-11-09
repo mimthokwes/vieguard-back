@@ -9,7 +9,7 @@ export const startAutoCancelOrderJob = () => {
       const now = new Date();
       const expiredOrders = await prisma.order.findMany({
         where: {
-          status: 'pending',
+          status: { in: ['pending', 'dikonfirmasi'] },
           expiredAt: { lte: now },
         },
       });
@@ -20,16 +20,21 @@ export const startAutoCancelOrderJob = () => {
           data: { status: 'dibatalkan' },
         });
 
+        const isDikonfirmasi = order.status === 'dikonfirmasi';
+        const cancelMessage = isDikonfirmasi
+          ? `Pesanan ${order.orderNumber} telah dibatalkan otomatis karena melewati batas waktu pembayaran DP (24 jam).`
+          : `Pesanan ${order.orderNumber} dibatalkan otomatis karena konfirmasi bahan melewati batas waktu.`;
+
         await dispatchNotification({
           recipientType: 'user',
           recipientId: order.userId,
           type: 'ORDER_AUTO_CANCELLED',
           title: 'Pesanan Dibatalkan Otomatis',
-          message: `Pesanan ${order.orderNumber} telah dibatalkan otomatis karena melewati batas waktu pembayaran.`,
+          message: cancelMessage,
           relatedOrderId: order.id,
         });
 
-        console.log(`[JOB] Order ${order.orderNumber} auto-cancelled.`);
+        console.log(`[JOB] Order ${order.orderNumber} (${order.status}) auto-cancelled.`);
       }
     } catch (error) {
       console.error('[JOB ERROR] Auto-cancel order job failed:', error);
