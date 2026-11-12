@@ -58,14 +58,17 @@ export const initSocketServer = (httpServer: HttpServer) => {
         });
 
         const room = `conversation:${data.conversationId}`;
-        // 1. Emit pesan user ke room website & mobile admin
+        // 1. Emit pesan user ke room website & seluruh mobile admin yang terhubung
         websiteNamespace.to(room).emit('message:new', userMessage);
-        io?.of('/ws/mobile').to(room).to('admins').emit('message:new', userMessage);
+        const mobileNs = io?.of('/ws/mobile');
+        if (mobileNs) {
+          mobileNs.emit('message:new', userMessage);
+        }
 
         // 2. Jika ada balasan otomatis dari AI (sebagai admin), emit ke website & mobile
         if (aiMessage) {
           websiteNamespace.to(room).emit('message:new', aiMessage);
-          io?.of('/ws/mobile').to(room).to('admins').emit('message:new', aiMessage);
+          mobileNs?.emit('message:new', aiMessage);
         }
       } catch (err) {
         console.error('Error sending website chat message:', err);

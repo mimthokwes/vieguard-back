@@ -1,7 +1,8 @@
-import Redis from 'ioredis';
-import { env } from './env';
+import Redis from "ioredis";
+import { env } from "./env";
 
 let isConnected = false;
+let hasLoggedError = false;
 
 export const redis = new Redis({
   host: env.REDIS_HOST,
@@ -9,28 +10,36 @@ export const redis = new Redis({
   password: env.REDIS_PASSWORD || undefined,
   db: env.REDIS_DB,
   retryStrategy(times) {
-    const delay = Math.min(times * 50, 2000);
+    const delay = Math.min(times * 100, 3000);
     return delay;
   },
   maxRetriesPerRequest: 3,
-  enableOfflineQueue: true,
+  enableOfflineQueue: false,
 });
 
-redis.on('connect', () => {
-  console.log('[Redis] Connecting to Redis server...');
+redis.on("connect", () => {
+  console.log("[Redis] Connecting to Redis server...");
 });
 
-redis.on('ready', () => {
+redis.on("ready", () => {
   isConnected = true;
-  console.log(`[Redis] Connected successfully to ${env.REDIS_HOST}:${env.REDIS_PORT}`);
+  hasLoggedError = false;
+  console.log(
+    `[Redis] Connected successfully to ${env.REDIS_HOST}:${env.REDIS_PORT}`,
+  );
 });
 
-redis.on('error', (err) => {
+redis.on("error", (err) => {
   isConnected = false;
-  console.error('[Redis Error]', err.message);
+  if (!hasLoggedError) {
+    hasLoggedError = true;
+    console.warn(
+      `[Redis Notice] Redis is not reachable (${err.message}). Caching will gracefully fall back to database.`,
+    );
+  }
 });
 
-redis.on('close', () => {
+redis.on("close", () => {
   isConnected = false;
 });
 

@@ -1,12 +1,20 @@
-import { prisma } from '../../../config/prisma';
-import { generateOrderNumber } from '../../../shared/utils/orderNumber';
-import { checkRentalAvailability } from '../../../shared/services/rentalAvailability';
-import { dispatchNotification } from '../../../shared/services/notificationDispatcher';
-import { AppError } from '../../../middlewares/error-handler';
+import { prisma } from "../../../config/prisma";
+import { generateOrderNumber } from "../../../shared/utils/orderNumber";
+import { checkRentalAvailability } from "../../../shared/services/rentalAvailability";
+import { dispatchNotification } from "../../../shared/services/notificationDispatcher";
+import { scheduleOrderAutoCancel } from "../../../jobs/auto-cancel-order.job";
+import { AppError } from "../../../middlewares/error-handler";
 
 export class WebsiteOrdersService {
   static async createOrder(userId: bigint, data: any) {
-    const { orderType, requiresProduction, notes, items, rentalDetail, customDetail } = data;
+    const {
+      orderType,
+      requiresProduction,
+      notes,
+      items,
+      rentalDetail,
+      customDetail,
+    } = data;
 
     // Calculate total price
     let totalPrice = 0;
@@ -26,26 +34,33 @@ export class WebsiteOrdersService {
     });
 
     // Check rental availability if orderType === 'sewa'
-    if (orderType === 'sewa') {
-      if (!rentalDetail || !rentalDetail.pickupDate || !rentalDetail.returnDate) {
-        throw new AppError('Detail tanggal sewa (pickupDate & returnDate) wajib diisi untuk sewa.', 400);
+    if (orderType === "sewa") {
+      if (
+        !rentalDetail ||
+        !rentalDetail.pickupDate ||
+        !rentalDetail.returnDate
+      ) {
+        throw new AppError(
+          "Detail tanggal sewa (pickupDate & returnDate) wajib diisi untuk sewa.",
+          400,
+        );
       }
 
       const pickupDate = new Date(rentalDetail.pickupDate);
       const returnDate = new Date(rentalDetail.returnDate);
 
       for (const item of items) {
-        if (item.itemType === 'product' && item.productId) {
+        if (item.itemType === "product" && item.productId) {
           const { availableStock } = await checkRentalAvailability(
             item.productId,
             item.productVariantId || null,
             pickupDate,
-            returnDate
+            returnDate,
           );
           if (availableStock < item.quantity) {
             throw new AppError(
               `Stok sewa tidak mencukupi untuk tanggal ${rentalDetail.pickupDate} s/d ${rentalDetail.returnDate}`,
-              400
+              400,
             );
           }
         }
@@ -61,7 +76,7 @@ export class WebsiteOrdersService {
         orderNumber,
         orderType,
         requiresProduction: Boolean(requiresProduction),
-        status: 'pending',
+        status: "pending",
         totalPrice,
         expiredAt,
         notes,
@@ -70,18 +85,18 @@ export class WebsiteOrdersService {
             data: orderItemsData,
           },
         },
-        ...(orderType === 'sewa' && rentalDetail
+        ...(orderType === "sewa" && rentalDetail
           ? {
               rental: {
                 create: {
                   pickupDate: new Date(rentalDetail.pickupDate),
                   returnDate: new Date(rentalDetail.returnDate),
-                  status: 'dipesan',
+                  status: "dipesan",
                 },
               },
             }
           : {}),
-        ...(orderType === 'custom' && customDetail
+        ...(orderType === "custom" && customDetail
           ? {
               customOrderDetail: {
                 create: {
@@ -101,14 +116,17 @@ export class WebsiteOrdersService {
       },
     });
 
+    // Schedule auto-cancel check 2 days after order placement
+    scheduleOrderAutoCancel(order.id, expiredAt);
+
     // Notify admins of new incoming order
     const admins = await prisma.admin.findMany({ select: { id: true } });
     for (const admin of admins) {
       await dispatchNotification({
-        recipientType: 'admin',
+        recipientType: "admin",
         recipientId: admin.id,
-        type: 'ORDER_NEW',
-        title: 'Pesanan Baru Diterima',
+        type: "ORDER_NEW",
+        title: "Pesanan Baru Diterima",
         message: `Pesanan ${order.orderNumber} (${order.orderType}) telah dibuat oleh pelanggan.`,
         relatedOrderId: order.id,
       });
@@ -129,7 +147,7 @@ export class WebsiteOrdersService {
         payments: true,
         statusHistory: true,
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
   }
 
@@ -148,11 +166,11 @@ export class WebsiteOrdersService {
         customOrderDetail: true,
         payments: true,
         orderPhotos: true,
-        statusHistory: { orderBy: { createdAt: 'asc' } },
+        statusHistory: { orderBy: { createdAt: "asc" } },
       },
     });
 
-    if (!order) throw new AppError('Pesanan tidak ditemukan', 404);
+    if (!order) throw new AppError("Pesanan tidak ditemukan", 404);
     return order;
   }
 
@@ -160,7 +178,7 @@ export class WebsiteOrdersService {
     await this.getOrderDetail(userId, orderId);
     return prisma.orderStatusHistory.findMany({
       where: { orderId },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: "asc" },
     });
   }
 }

@@ -1,6 +1,7 @@
-import { prisma } from '../../config/prisma';
-import { dispatchNotification } from '../../shared/services/notificationDispatcher';
-import { MidtransService } from '../../shared/services/midtrans.service';
+import { prisma } from "../../config/prisma";
+import { dispatchNotification } from "../../shared/services/notificationDispatcher";
+import { MidtransService } from "../../shared/services/midtrans.service";
+import { cancelScheduledAutoCancel } from "../../jobs/auto-cancel-order.job";
 
 export class MidtransWebhookService {
   static async handleNotification(notification: any) {
@@ -19,16 +20,23 @@ export class MidtransWebhookService {
 
     // Verify signature from Midtrans if provided
     if (signature_key && status_code && gross_amount) {
-      const isValid = MidtransService.verifySignature(order_id, status_code, gross_amount, signature_key);
+      const isValid = MidtransService.verifySignature(
+        order_id,
+        status_code,
+        gross_amount,
+        signature_key,
+      );
       if (!isValid) {
-        console.warn(`[Midtrans Webhook] Warning: Invalid signature for order ${order_id}`);
+        console.warn(
+          `[Midtrans Webhook] Warning: Invalid signature for order ${order_id}`,
+        );
       }
     }
 
     // Strip charge suffix if present (e.g. "VG-20261109-001-DP-1234" -> "VG-20261109-001")
     const baseOrderNumber = order_id
-      .replace(/-(DP|PELUNASAN|FULL)-[a-zA-Z0-9]+$/, '')
-      .replace(/-(DP|PELUNASAN|FULL)$/, '');
+      .replace(/-(DP|PELUNASAN|FULL)-[a-zA-Z0-9]+$/, "")
+      .replace(/-(DP|PELUNASAN|FULL)$/, "");
 
     const order = await prisma.order.findUnique({
       where: { orderNumber: baseOrderNumber },
@@ -36,24 +44,29 @@ export class MidtransWebhookService {
     });
 
     if (!order) {
-      console.warn(`[Midtrans Webhook] Order with number ${baseOrderNumber} (from ${order_id}) not found.`);
+      console.warn(
+        `[Midtrans Webhook] Order with number ${baseOrderNumber} (from ${order_id}) not found.`,
+      );
       return;
     }
 
     let isSuccess = false;
-    if (transaction_status === 'capture') {
-      if (fraud_status === 'challenge') {
-        console.log(`[Midtrans Webhook] Order ${order_id} is in fraud challenge.`);
-      } else if (fraud_status === 'accept') {
+    if (transaction_status === "capture") {
+      if (fraud_status === "challenge") {
+        console.log(
+          `[Midtrans Webhook] Order ${order_id} is in fraud challenge.`,
+        );
+      } else if (fraud_status === "accept") {
         isSuccess = true;
       }
-    } else if (transaction_status === 'settlement') {
+    } else if (transaction_status === "settlement") {
       isSuccess = true;
     }
 
     if (isSuccess) {
-      const paymentAmount = parseFloat(gross_amount) || Number(order.totalPrice);
-      const isDp = order_id.includes('-DP');
+      const paymentAmount =
+        parseFloat(gross_amount) || Number(order.totalPrice);
+      const isDp = order_id.includes("-DP");
 
       // Check if this midtransTransactionId or midtransOrderId was already recorded to prevent duplicate records
       const existingPayment = await prisma.payment.findFirst({
@@ -67,12 +80,12 @@ export class MidtransWebhookService {
         await prisma.payment.create({
           data: {
             orderId: order.id,
-            paymentType: isDp ? 'dp' : 'pelunasan',
+            paymentType: isDp ? "dp" : "pelunasan",
             amount: paymentAmount,
-            paymentMethod: payment_type || 'midtrans',
+            paymentMethod: payment_type || "midtrans",
             midtransOrderId: order_id,
             midtransTransactionId: transaction_id,
-            status: 'terverifikasi',
+            status: "terverifikasi",
             verifiedAt: new Date(),
           },
         });
@@ -80,7 +93,9 @@ export class MidtransWebhookService {
 
       // Calculate total paid
       const existingPaid = order.payments
-        .filter((p) => p.status === 'terverifikasi' && p.paymentType !== 'refund')
+        .filter(
+          (p) => p.status === "terverifikasi" && p.paymentType !== "refund",
+        )
         .reduce((sum, p) => sum + Number(p.amount), 0);
       const totalPaid = existingPaid + paymentAmount;
       const isLunas = totalPaid >= Number(order.totalPrice);
@@ -89,22 +104,29 @@ export class MidtransWebhookService {
         where: { id: order.id },
         data: {
           isLunas,
+          expiredAt: null,
           status: isLunas
-            ? (order.requiresProduction ? 'diproses' : 'siap_diambil')
-            : 'diproses',
+            ? order.requiresProduction
+              ? "diproses"
+              : "siap_diambil"
+            : "diproses",
         },
       });
 
+      cancelScheduledAutoCancel(order.id);
+
       await dispatchNotification({
-        recipientType: 'user',
+        recipientType: "user",
         recipientId: order.userId,
-        type: 'PAYMENT_VERIFIED',
-        title: 'Pembayaran Berhasil',
-        message: `Pembayaran online (${isDp ? 'DP' : 'Pelunasan'}) untuk pesanan ${order.orderNumber} telah berhasil terverifikasi otomatis.`,
+        type: "PAYMENT_VERIFIED",
+        title: "Pembayaran Berhasil",
+        message: `Pembayaran online (${isDp ? "DP" : "Pelunasan"}) untuk pesanan ${order.orderNumber} telah berhasil terverifikasi otomatis.`,
         relatedOrderId: order.id,
       });
 
-      console.log(`[Midtrans Webhook] Order ${order.orderNumber} payment verified successfully.`);
+      console.log(
+        `[Midtrans Webhook] Order ${order.orderNumber} payment verified successfully.`,
+      );
     }
   }
 }

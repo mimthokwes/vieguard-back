@@ -33,4 +33,4 @@ RUN mkdir -p /app/uploads && chown -R node:node /app/uploads
 
 USER node
 EXPOSE 3000
-CMD ["node", "dist/index.js"]
+CMD ["node", "dist/server.js"]
