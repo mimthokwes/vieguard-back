@@ -47,6 +47,25 @@ export const initSocketServer = (httpServer: HttpServer) => {
       socket.join(`conversation:${conversationId}`);
     });
 
+    socket.on('conversation:set_bot', async (data: { conversationId: string; isBotActive: boolean }) => {
+      try {
+        const convId = BigInt(data.conversationId);
+        const conv = await prisma.conversation.findFirst({
+          where: { id: convId, userId: user.id },
+        });
+        if (!conv) return;
+
+        const updated = await ChatService.setBotStatus(convId, data.isBotActive);
+        const room = `conversation:${data.conversationId}`;
+        const payload = { conversationId: data.conversationId, isBotActive: updated.isBotActive };
+        websiteNamespace.to(room).to(`user:${user.id}`).emit('conversation:bot_status', payload);
+        const mobileNs = io?.of('/ws/mobile');
+        mobileNs?.to(room).to('admins').emit('conversation:bot_status', payload);
+      } catch (err) {
+        console.error('Error updating bot status from website socket:', err);
+      }
+    });
+
     socket.on('message:send', async (data: { conversationId: string; messageText?: string; imageAttachment?: string }) => {
       try {
         const convId = BigInt(data.conversationId);
@@ -103,6 +122,20 @@ export const initSocketServer = (httpServer: HttpServer) => {
       socket.join(`conversation:${conversationId}`);
     });
 
+    socket.on('conversation:set_bot', async (data: { conversationId: string; isBotActive: boolean }) => {
+      try {
+        const convId = BigInt(data.conversationId);
+        const updated = await ChatService.setBotStatus(convId, data.isBotActive);
+        const room = `conversation:${data.conversationId}`;
+        const payload = { conversationId: data.conversationId, isBotActive: updated.isBotActive };
+        mobileNamespace.to(room).to('admins').emit('conversation:bot_status', payload);
+        const websiteNs = io?.of('/ws/website');
+        websiteNs?.to(room).emit('conversation:bot_status', payload);
+      } catch (err) {
+        console.error('Error updating bot status from mobile admin socket:', err);
+      }
+    });
+
     socket.on('message:send', async (data: { conversationId: string; messageText?: string; imageAttachment?: string }) => {
       try {
         const convId = BigInt(data.conversationId);
@@ -116,9 +149,16 @@ export const initSocketServer = (httpServer: HttpServer) => {
           }),
           prisma.conversation.findUnique({
             where: { id: convId },
-            select: { userId: true },
+            select: { userId: true, isBotActive: true },
           }),
         ]);
+
+        // KETIKA ADMIN SUDAH MENJAWAB: Otomatis nonaktifkan AI agar tidak terus membalas
+        let botDeactivated = false;
+        if (conversation?.isBotActive) {
+          await ChatService.setBotStatus(convId, false);
+          botDeactivated = true;
+        }
 
         const room = `conversation:${data.conversationId}`;
         mobileNamespace.to(room).to('admins').emit('message:new', message);
@@ -130,6 +170,12 @@ export const initSocketServer = (httpServer: HttpServer) => {
             websiteTarget = websiteTarget.to(`user:${conversation.userId}`);
           }
           websiteTarget.emit('message:new', message);
+
+          if (botDeactivated) {
+            const statusPayload = { conversationId: data.conversationId, isBotActive: false };
+            websiteTarget.emit('conversation:bot_status', statusPayload);
+            mobileNamespace.to(room).to('admins').emit('conversation:bot_status', statusPayload);
+          }
         }
       } catch (err) {
         console.error('Error sending mobile chat message:', err);

@@ -72,7 +72,18 @@ export class ChatService {
   }
 
   /**
+   * Mengatur status keaktifan AI Bot pada percakapan
+   */
+  static async setBotStatus(conversationId: bigint, isBotActive: boolean) {
+    return prisma.conversation.update({
+      where: { id: conversationId },
+      data: { isBotActive },
+    });
+  }
+
+  /**
    * Menyimpan pesan pelanggan dan meminta balasan otomatis dari Model AI (RAG).
+   * Balasan AI hanya diproses jika status isBotActive pada percakapan bernilai true.
    * Jawaban AI disimpan sebagai 'admin' sehingga seolah-olah dibalas oleh admin.
    */
   static async handleUserMessageAndAIReply(data: {
@@ -92,17 +103,18 @@ export class ChatService {
 
     let aiMessage: any = null;
 
-    // 2. Jika ada teks pesan, minta respon dari Model AI
-    if (data.messageText && data.messageText.trim().length > 0) {
+    // Ambil info percakapan untuk mengecek apakah bot AI masih aktif
+    const conv = await prisma.conversation.findUnique({
+      where: { id: data.conversationId },
+      select: { adminId: true, isBotActive: true },
+    });
+
+    // 2. Jika bot masih aktif dan ada teks pesan, minta respon dari Model AI
+    if (conv?.isBotActive && data.messageText && data.messageText.trim().length > 0) {
       try {
         const aiResponse = await AIService.askChatbot(data.messageText.trim());
 
         // Cari atau pasang adminId untuk percakapan ini
-        const conv = await prisma.conversation.findUnique({
-          where: { id: data.conversationId },
-          select: { adminId: true },
-        });
-
         let adminId = conv?.adminId;
         if (!adminId) {
           const defaultAdmin = await prisma.admin.findFirst({ orderBy: { id: 'asc' } });
