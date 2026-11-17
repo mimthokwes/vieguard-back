@@ -1,4 +1,5 @@
 import { ChatService } from '../../../shared/services/chatService';
+import { getSocketServer } from '../../../config/socket';
 
 export class WebsiteChatService {
   static async getConversations(userId: bigint) {
@@ -14,6 +15,17 @@ export class WebsiteChatService {
   }
 
   static async sendMessage(data: { conversationId: bigint; userId: bigint; messageText?: string; imageAttachment?: string }) {
-    return ChatService.handleUserMessageAndAIReply(data);
+    const result = await ChatService.handleUserMessageAndAIReply(data);
+    const io = getSocketServer();
+    if (io) {
+      const room = `conversation:${data.conversationId.toString()}`;
+      io.of('/ws/website').to(room).to(`user:${data.userId.toString()}`).emit('message:new', result.userMessage);
+      io.of('/ws/mobile').emit('message:new', result.userMessage);
+      if (result.aiMessage) {
+        io.of('/ws/website').to(room).to(`user:${data.userId.toString()}`).emit('message:new', result.aiMessage);
+        io.of('/ws/mobile').emit('message:new', result.aiMessage);
+      }
+    }
+    return result;
   }
 }

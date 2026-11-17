@@ -26,7 +26,11 @@ export const dispatchNotification = async (params: DispatchNotificationParams) =
   if (io) {
     const namespace = params.recipientType === 'user' ? '/ws/website' : '/ws/mobile';
     const room = `${params.recipientType}:${params.recipientId.toString()}`;
-    io.of(namespace).to(room).emit('notification:new', notification);
+    const nsp = io.of(namespace);
+    nsp.to(room).emit('notification:new', notification);
+    if (params.recipientType === 'admin') {
+      nsp.to('admins').emit('notification:new', notification);
+    }
   }
 
   return notification;
