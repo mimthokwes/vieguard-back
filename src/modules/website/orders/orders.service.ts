@@ -159,11 +159,20 @@ export class WebsiteOrdersService {
       where: { userId },
       include: {
         items: {
-          include: { product: true, productVariant: true, accessory: true },
+          include: {
+            product: {
+              include: {
+                images: { orderBy: { isPrimary: "desc" } },
+              },
+            },
+            productVariant: true,
+            accessory: true,
+          },
         },
         rental: true,
         customOrderDetail: true,
         payments: true,
+        orderPhotos: { orderBy: { createdAt: "desc" } },
         statusHistory: true,
       },
       orderBy: { createdAt: "desc" },

@@ -613,6 +613,25 @@
         }
       }
     },
+    "/api/v0/website/notifications/read-all": {
+      "patch": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
     "/api/v0/website/notifications/{id}/read": {
       "patch": {
         "description": "",

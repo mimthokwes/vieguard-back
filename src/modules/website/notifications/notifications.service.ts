@@ -14,4 +14,11 @@ export class WebsiteNotificationsService {
       data: { isRead: true },
     });
   }
+
+  static async markAllAsRead(userId: bigint) {
+    return prisma.notification.updateMany({
+      where: { recipientType: 'user', recipientId: userId, isRead: false },
+      data: { isRead: true },
+    });
+  }
 }
