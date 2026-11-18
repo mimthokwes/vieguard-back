@@ -52,3 +52,15 @@ export const sendMessage = async (req: AuthenticatedUserRequest, res: Response, 
   }
 };
 
+export const setBotStatus = async (req: AuthenticatedUserRequest, res: Response, next: NextFunction) => {
+  try {
+    const conversationId = toBigInt(req.params.id);
+    const userId = req.user!.id;
+    const isBotActive = req.body.isBotActive !== undefined ? Boolean(req.body.isBotActive) : true;
+    const conversation = await WebsiteChatService.setBotStatus(conversationId, userId, isBotActive);
+    return sendSuccess(res, 'Status bot percakapan berhasil diperbarui', conversation);
+  } catch (error) {
+    next(error);
+  }
+};
+

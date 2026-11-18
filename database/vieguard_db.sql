@@ -150,6 +150,7 @@ CREATE TABLE `conversations` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `user_id` bigint NOT NULL,
   `admin_id` bigint DEFAULT NULL,
+  `is_bot_active` tinyint(1) NOT NULL DEFAULT '1',
   `last_message_at` datetime(3) DEFAULT NULL,
   `created_at` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),

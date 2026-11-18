@@ -3,7 +3,18 @@ name: Build and push Docker image
 on:
   push:
     branches: [main]
-  workflow_dispatch: # allows manual run from the Actions tab
+  workflow_dispatch:
+    inputs:
+      description:
+        description: 'Tulis deskripsi / catatan rilis image ini'
+        required: false
+        type: string
+        default: ''
+      tag_as_latest:
+        description: 'Jadikan sebagai tag "latest"? (Centang jika ingin menimpa tag latest)'
+        required: true
+        type: boolean
+        default: true
 
 env:
   REGISTRY: ghcr.io
@@ -23,7 +34,44 @@ jobs:
       - name: Set lowercase image name
         run: echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
 
-      # Registers the arm64 emulator on the runner
+      # 1. Ekstrak pesan commit terakhir
+      - name: Get commit details
+        id: commit_info
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=format:"%s")
+          echo "commit_msg=$COMMIT_MSG" >> "$GITHUB_OUTPUT"
+
+      # 2. Tentukan deskripsi (prioritaskan input manual jika ada)
+      - name: Determine image description
+        id: desc
+        env:
+          INPUT_DESC: ${{ inputs.description }}
+          COMMIT_MSG: ${{ steps.commit_info.outputs.commit_msg }}
+        run: |
+          if [ -n "$INPUT_DESC" ]; then
+            echo "final_desc=$INPUT_DESC" >> "$GITHUB_OUTPUT"
+          else
+            echo "final_desc=$COMMIT_MSG" >> "$GITHUB_OUTPUT"
+          fi
+
+      # 3. Docker Metadata Action (Membuat tags & label OCI resmi untuk GHCR)
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref_name == 'main' || inputs.tag_as_latest == true }}
+            type=ref,event=branch
+            type=sha,format=short
+          labels: |
+            org.opencontainers.image.title=${{ github.event.repository.name }}
+            org.opencontainers.image.description=${{ steps.desc.outputs.final_desc }}
+            org.opencontainers.image.source=${{ github.event.repository.html_url }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.vendor=VieGuard
+            built-by=${{ github.actor }}
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -43,8 +91,7 @@ jobs:
           context: .
           platforms: linux/arm64
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

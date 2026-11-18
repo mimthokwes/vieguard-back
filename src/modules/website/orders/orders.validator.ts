@@ -29,4 +29,16 @@ export const createOrderSchema = z.object({
       consultationNote: z.string().optional(),
     })
     .optional(),
+  orderSizeEntries: z
+    .array(
+      z.object({
+        studentName: z.string().optional(),
+        name: z.string().optional(),
+        gender: z.string().optional(),
+        heightCm: z.number().optional(),
+        size: z.string(),
+        role: z.string().optional(),
+      })
+    )
+    .optional(),
 });

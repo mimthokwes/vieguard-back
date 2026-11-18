@@ -22,10 +22,14 @@ export class MobileChatService {
     if (!user) throw new AppError('Pelanggan tidak ditemukan.', 404);
     const conversation = await ChatService.getOrCreateConversation(userId, adminId);
     if (data.messageText?.trim()) {
+      await ChatService.setBotStatus(conversation.id, false);
       const message = await ChatService.saveMessage({ conversationId: conversation.id, senderType: 'admin', senderId: adminId, messageText: data.messageText.trim() });
       const io = getSocketServer();
+      const statusPayload = { conversationId: conversation.id.toString(), isBotActive: false };
       io?.of('/ws/website').to(`conversation:${conversation.id}`).to(`user:${userId}`).emit('message:new', message);
+      io?.of('/ws/website').to(`conversation:${conversation.id}`).to(`user:${userId}`).emit('conversation:bot_status', statusPayload);
       io?.of('/ws/mobile').to(`conversation:${conversation.id}`).to('admins').emit('message:new', message);
+      io?.of('/ws/mobile').to(`conversation:${conversation.id}`).to('admins').emit('conversation:bot_status', statusPayload);
     }
     return conversation;
   }

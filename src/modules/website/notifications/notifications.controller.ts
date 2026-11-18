@@ -21,3 +21,12 @@ export const markAsRead = async (req: AuthenticatedUserRequest, res: Response, n
     next(error);
   }
 };
+
+export const markAllAsRead = async (req: AuthenticatedUserRequest, res: Response, next: NextFunction) => {
+  try {
+    await WebsiteNotificationsService.markAllAsRead(req.user!.id);
+    return sendSuccess(res, 'Semua notifikasi ditandai telah dibaca');
+  } catch (error) {
+    next(error);
+  }
+};

@@ -330,6 +330,7 @@ model Conversation {
   id            BigInt    @id @default(autoincrement())
   userId        BigInt    @map("user_id")
   adminId       BigInt?   @map("admin_id")
+  isBotActive   Boolean   @default(true) @map("is_bot_active")
   lastMessageAt DateTime? @map("last_message_at")
   createdAt     DateTime  @default(now()) @map("created_at")
 

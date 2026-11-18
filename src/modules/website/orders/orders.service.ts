@@ -14,6 +14,7 @@ export class WebsiteOrdersService {
       items,
       rentalDetail,
       customDetail,
+      orderSizeEntries,
     } = data;
 
     // Calculate total price
@@ -96,7 +97,7 @@ export class WebsiteOrdersService {
               },
             }
           : {}),
-        ...(orderType === "custom" && customDetail
+        ...(customDetail
           ? {
               customOrderDetail: {
                 create: {
@@ -108,11 +109,29 @@ export class WebsiteOrdersService {
               },
             }
           : {}),
+        ...(Array.isArray(orderSizeEntries) && orderSizeEntries.length > 0
+          ? {
+              orderSizeEntries: {
+                createMany: {
+                  data: orderSizeEntries
+                    .map((e: any) => ({
+                      studentName: String(e.studentName || e.name || "").trim().slice(0, 100),
+                      gender: e.gender ? String(e.gender).trim().toUpperCase().slice(0, 1) : null,
+                      heightCm: e.heightCm ? Math.round(Number(e.heightCm)) || null : null,
+                      size: String(e.size || "").trim().toUpperCase().slice(0, 20),
+                      role: e.role ? String(e.role).trim().slice(0, 60) : null,
+                    }))
+                    .filter((e: any) => e.studentName && e.size),
+                },
+              },
+            }
+          : {}),
       },
       include: {
         items: true,
         rental: true,
         customOrderDetail: true,
+        orderSizeEntries: true,
       },
     });
 
@@ -140,11 +159,20 @@ export class WebsiteOrdersService {
       where: { userId },
       include: {
         items: {
-          include: { product: true, productVariant: true, accessory: true },
+          include: {
+            product: {
+              include: {
+                images: { orderBy: { isPrimary: "desc" } },
+              },
+            },
+            productVariant: true,
+            accessory: true,
+          },
         },
         rental: true,
         customOrderDetail: true,
         payments: true,
+        orderPhotos: { orderBy: { createdAt: "desc" } },
         statusHistory: true,
       },
       orderBy: { createdAt: "desc" },
@@ -166,6 +194,7 @@ export class WebsiteOrdersService {
         customOrderDetail: true,
         payments: true,
         orderPhotos: true,
+        orderSizeEntries: true,
         statusHistory: { orderBy: { createdAt: "asc" } },
       },
     });
