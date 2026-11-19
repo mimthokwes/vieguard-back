@@ -2,6 +2,7 @@ import { Server as HttpServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { verifyAccessToken } from '../shared/utils/jwt';
 import { ChatService } from '../shared/services/chatService';
+import { FcmService } from '../shared/services/fcm.service';
 import { prisma } from './prisma';
 
 let io: SocketIOServer | null = null;
@@ -69,25 +70,40 @@ export const initSocketServer = (httpServer: HttpServer) => {
     socket.on('message:send', async (data: { conversationId: string; messageText?: string; imageAttachment?: string }) => {
       try {
         const convId = BigInt(data.conversationId);
-        const { userMessage, aiMessage } = await ChatService.handleUserMessageAndAIReply({
+        // 1. Simpan pesan pengguna
+        const userMessage = await ChatService.saveMessage({
           conversationId: convId,
-          userId: user.id,
+          senderType: 'user',
+          senderId: user.id,
           messageText: data.messageText,
           imageAttachment: data.imageAttachment,
         });
 
         const room = `conversation:${data.conversationId}`;
-        // 1. Emit pesan user ke room website & seluruh mobile admin yang terhubung
+        // 2. Emit pesan user ke room website & seluruh mobile admin SEKETIKA (realtime instan)
         websiteNamespace.to(room).emit('message:new', userMessage);
         const mobileNs = io?.of('/ws/mobile');
         if (mobileNs) {
           mobileNs.emit('message:new', userMessage);
         }
 
-        // 2. Jika ada balasan otomatis dari AI (sebagai admin), emit ke website & mobile
-        if (aiMessage) {
-          websiteNamespace.to(room).emit('message:new', aiMessage);
-          mobileNs?.emit('message:new', aiMessage);
+        // Kirim Push Notification FCM ke handphone admin (notifikasi tetap masuk meski aplikasi ditutup total)
+        prisma.user.findUnique({ where: { id: user.id }, select: { name: true } }).then((sender) => {
+          FcmService.sendChatPushToAdmins({
+            customerName: sender?.name || 'Pelanggan',
+            messageText: data.messageText || (data.imageAttachment ? 'Mengirim gambar lampiran' : 'Pesan baru masuk'),
+            conversationId: data.conversationId,
+          }).catch((err) => console.error('[FCM] Error chat push:', err));
+        }).catch(() => {});
+
+        // 3. Proses balasan AI di latar belakang secara asinkron tanpa menahan broadcast pesan pengguna
+        if (data.messageText && data.messageText.trim().length > 0) {
+          ChatService.processAIReply(convId, data.messageText, (aiMessage) => {
+            websiteNamespace.to(room).emit('message:new', aiMessage);
+            mobileNs?.emit('message:new', aiMessage);
+          }).catch((err) => {
+            console.error('Error background AI reply:', err);
+          });
         }
       } catch (err) {
         console.error('Error sending website chat message:', err);

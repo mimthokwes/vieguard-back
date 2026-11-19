@@ -2,6 +2,7 @@ import { ChatService } from '../../../shared/services/chatService';
 import { getSocketServer } from '../../../config/socket';
 import { prisma } from '../../../config/prisma';
 import { AppError } from '../../../middlewares/error-handler';
+import { FcmService } from '../../../shared/services/fcm.service';
 
 export class WebsiteChatService {
   static async getConversations(userId: bigint) {
@@ -34,17 +35,38 @@ export class WebsiteChatService {
   }
 
   static async sendMessage(data: { conversationId: bigint; userId: bigint; messageText?: string; imageAttachment?: string }) {
-    const result = await ChatService.handleUserMessageAndAIReply(data);
+    const userMessage = await ChatService.saveMessage({
+      conversationId: data.conversationId,
+      senderType: 'user',
+      senderId: data.userId,
+      messageText: data.messageText,
+      imageAttachment: data.imageAttachment,
+    });
+
     const io = getSocketServer();
     if (io) {
       const room = `conversation:${data.conversationId.toString()}`;
-      io.of('/ws/website').to(room).to(`user:${data.userId.toString()}`).emit('message:new', result.userMessage);
-      io.of('/ws/mobile').emit('message:new', result.userMessage);
-      if (result.aiMessage) {
-        io.of('/ws/website').to(room).to(`user:${data.userId.toString()}`).emit('message:new', result.aiMessage);
-        io.of('/ws/mobile').emit('message:new', result.aiMessage);
+      io.of('/ws/website').to(room).to(`user:${data.userId.toString()}`).emit('message:new', userMessage);
+      io.of('/ws/mobile').emit('message:new', userMessage);
+
+      // Kirim Push Notification FCM ke handphone admin
+      prisma.user.findUnique({ where: { id: data.userId }, select: { name: true } }).then((sender) => {
+        FcmService.sendChatPushToAdmins({
+          customerName: sender?.name || 'Pelanggan',
+          messageText: data.messageText || (data.imageAttachment ? 'Mengirim gambar lampiran' : 'Pesan baru masuk'),
+          conversationId: data.conversationId.toString(),
+        }).catch((err) => console.error('[FCM] Error chat push HTTP:', err));
+      }).catch(() => {});
+
+      if (data.messageText && data.messageText.trim().length > 0) {
+        ChatService.processAIReply(data.conversationId, data.messageText, (aiMessage) => {
+          io.of('/ws/website').to(room).to(`user:${data.userId.toString()}`).emit('message:new', aiMessage);
+          io.of('/ws/mobile').emit('message:new', aiMessage);
+        }).catch((err) => {
+          console.error('Error background AI reply HTTP:', err);
+        });
       }
     }
-    return result;
+    return { userMessage };
   }
 }
