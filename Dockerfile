@@ -27,9 +27,9 @@ RUN npm ci --omit=dev && npx prisma generate && npm cache clean --force
 
 COPY --from=build /app/dist ./dist
 
-# Create the uploads folder owned by the non-root user,
-# so the mounted volume is writable by the app
-RUN mkdir -p /app/uploads && chown -R node:node /app/uploads
+# Create the uploads & keys folder owned by the non-root user,
+# so the mounted volume is writable/readable by the app
+RUN mkdir -p /app/uploads /app/keys && chown -R node:node /app/uploads /app/keys
 
 USER node
 EXPOSE 3000

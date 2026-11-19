@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { MobileAuthService } from './auth.service';
 import { sendSuccess } from '../../../shared/utils/response';
+import { FcmService } from '../../../shared/services/fcm.service';
 
 export const register = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -60,6 +61,32 @@ export const resetPassword = async (req: Request, res: Response, next: NextFunct
   try {
     const result = await MobileAuthService.resetPassword(req.body);
     return sendSuccess(res, result.message);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const saveFcmToken = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const adminId = (req as any).user?.id;
+    const { token } = req.body;
+    if (adminId && token) {
+      await FcmService.registerAdminToken(adminId, token);
+    }
+    return sendSuccess(res, 'FCM token berhasil didaftarkan');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const removeFcmToken = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const adminId = (req as any).user?.id;
+    const { token } = req.body;
+    if (adminId && token) {
+      await FcmService.unregisterAdminToken(adminId, token);
+    }
+    return sendSuccess(res, 'FCM token berhasil dihapus');
   } catch (error) {
     next(error);
   }

@@ -2,9 +2,13 @@ import http from "http";
 import app from "./app";
 import { env } from "./config/env";
 import { initSocketServer } from "./config/socket";
+import { initFirebase } from "./config/firebase";
 import { startAutoCancelOrderJob } from "./jobs/auto-cancel-order.job";
 
 const server = http.createServer(app);
+
+// Initialize Firebase Admin for FCM push notifications
+initFirebase();
 
 // Initialize Socket.io with website & mobile namespaces
 initSocketServer(server);
